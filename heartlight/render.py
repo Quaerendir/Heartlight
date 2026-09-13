@@ -326,61 +326,138 @@ class Curtain:
             return False
 
 
-class Sounds:
-    """Short synthesised blips keyed by event kind; silent if the mixer is unavailable."""
-    RATE = 22050
-    SPEC: dict[EventKind, tuple[float, float, bool]] = {       # (Hz, seconds, noise)
-        EventKind.GRASS_EATEN: (180.0, 0.03, True),
-        EventKind.PUSHED: (140.0, 0.04, False),
-        EventKind.ROCK_LANDED: (90.0, 0.05, False),
-        EventKind.BOMB_LANDED: (90.0, 0.05, False),
-        EventKind.HEART_LANDED: (300.0, 0.04, False),
-        EventKind.HEART_COLLECTED: (880.0, 0.08, False),
-        EventKind.BLAST: (60.0, 0.18, True),
-        EventKind.HERO_DIED: (50.0, 0.30, True),
-        EventKind.ROOM_COMPLETE: (660.0, 0.25, False),
-        EventKind.EXTRA_LIFE: (1320.0, 0.25, False),
-        EventKind.GAME_OVER: (40.0, 0.60, True),
-    }
+# ---------------------------------------------------------------- sound (SND_REQ / SND_PLAY)
+POKEY_CLOCK = 1_773_447          # PAL POKEY input clock (Hz)
+POKEY_BASE_DIV = 28              # AUDCTL=0: channel clocked at 64 kHz (1.77 MHz / 28)
+FRAME_SECONDS = 1 / 50           # a blip lasts exactly one PAL frame (WAIT_VBL .. WAIT_VBL)
+SND_F = (0x00, 0x04, None, 0x10)         # AUDF by priority-1; index 2 is written with (RANDOM & 15) + 8
+SND_C = (0x81, 0x04, 0xA4, 0x00)         # AUDC by priority-1; priority >= 4 uses (priority-1) | SND_C[3]
+SOUND_PRIORITY: dict[EventKind, int] = { # every JSR SND_REQ site in game.asm
+    EventKind.GRASS_EATEN: 1, EventKind.PUSHED: 1,
+    EventKind.ROCK_LANDED: 2, EventKind.ROCK_ROLLED: 2, EventKind.ROCK_HIT: 2,
+    EventKind.BOMB_LANDED: 2, EventKind.BOMB_HIT: 2,
+    EventKind.HEART_COLLECTED: 3, EventKind.HEART_LANDED: 3, EventKind.HEART_ROLLED: 3, EventKind.HEART_HIT: 3,
+}
+BLAST_FRAME_PRIORITY = 4         # SC_CELL: SEC; SBC #$30; ADC #$03  ->  frame + 4
+CURTAIN_PRIORITY = 3
 
-    def __init__(self, enabled: bool = True) -> None:
-        self._sounds: dict[EventKind, pygame.mixer.Sound] = {}
-        self._curtain: pygame.mixer.Sound | None = None
+
+def sound_priority(events: Sequence[Event]) -> int:
+    """SND_REQ keeps the maximum priority requested during a tick; 0 = silence."""
+    best = 0
+    for ev in events:
+        if ev.kind is EventKind.BLAST_FRAME:
+            best = max(best, ev.value + BLAST_FRAME_PRIORITY)
+        else:
+            best = max(best, SOUND_PRIORITY.get(ev.kind, 0))
+    return best
+
+
+def sound_registers(priority: int, rnd: random.Random) -> tuple[int, int]:
+    """SND_PLAY: (AUDF1, AUDC1) for a priority >= 1."""
+    y = priority - 1
+    if y >= 3:
+        return SND_F[3], (y | SND_C[3]) & 0xFF
+    audf = SND_F[y]
+    if audf is None:
+        audf = (rnd.randrange(256) & 0x0F) + 0x08          # RANDOM AND #$0F, ADC #$08 (carry clear)
+    return audf, SND_C[y]
+
+
+def _lfsr(bits: int, taps: tuple[int, int]) -> bytes:
+    """Maximal-length shift register output sequence (period 2**bits - 1)."""
+    reg, out = (1 << bits) - 1, bytearray()
+    for _ in range((1 << bits) - 1):
+        out.append(reg & 1)
+        bit = ((reg >> taps[0]) ^ (reg >> taps[1])) & 1
+        reg = (reg >> 1) | (bit << (bits - 1))
+    return bytes(out)
+
+
+class Pokey:
+    """One POKEY audio channel under AUDCTL=0, rendered to 16-bit mono PCM.
+
+    Polynomial counters run at the 1.77 MHz clock; the channel divider runs at 64 kHz and
+    fires every AUDF+1 ticks. AUDC: bit 7 = skip the 5-bit poly gate, bit 6 = 4-bit poly
+    instead of 17-bit, bit 5 = pure tone, bits 0-3 = volume.
+    """
+    POLY4 = _lfsr(4, (3, 2))
+    POLY5 = _lfsr(5, (4, 2))
+    POLY17: bytes | None = None      # built on first use (131071 steps)
+
+    def __init__(self, sample_rate: int = 44100, amplitude: int = 20000) -> None:
+        self.sample_rate = sample_rate
+        self.amplitude = amplitude
+        if Pokey.POLY17 is None:
+            Pokey.POLY17 = _lfsr(17, (16, 11))
+
+    def render(self, audf: int, audc: int, seconds: float = FRAME_SECONDS) -> array.array[int]:
+        base_hz = POKEY_CLOCK / POKEY_BASE_DIV
+        n_base = int(round(base_hz * seconds))
+        volume = audc & 0x0F
+        pure, poly4, skip5 = audc & 0x20, audc & 0x40, audc & 0x80
+        p4, p5, p17 = Pokey.POLY4, Pokey.POLY5, Pokey.POLY17 or b''
+        counter, out, clock = audf, 0, 0
+        levels = bytearray(n_base)
+        for t in range(n_base):
+            clock += POKEY_BASE_DIV
+            if counter == 0:
+                counter = audf
+                if skip5 or p5[clock % 31]:
+                    if pure:
+                        out ^= 1
+                    elif poly4:
+                        out = p4[clock % 15]
+                    else:
+                        out = p17[clock % 131071]
+            else:
+                counter -= 1
+            levels[t] = out
+        # box-filter resample 64 kHz -> sample_rate, centred, scaled by volume
+        n_out = int(round(self.sample_rate * seconds))
+        samples = array.array('h')
+        gain = self.amplitude * volume / 15
+        for k in range(n_out):
+            a, b = k * n_base // n_out, max(k * n_base // n_out + 1, (k + 1) * n_base // n_out)
+            mean = sum(levels[a:b]) / (b - a)
+            samples.append(int((mean * 2 - 1) * gain))
+        return samples
+
+
+class Sounds:
+    """SND_REQ/SND_PLAY: at most one blip per tick, the highest priority wins, one frame long."""
+    RATE = 44100
+
+    def __init__(self, enabled: bool = True, rnd: random.Random | None = None) -> None:
+        self.enabled = False
+        self.rnd = rnd or random.Random()
+        self.last: tuple[int, int] | None = None      # (AUDF, AUDC) of the last blip, for tests
+        self._cache: dict[tuple[int, int], pygame.mixer.Sound] = {}
+        self._pokey = Pokey(self.RATE)
         if not enabled:
             return
         try:
-            pygame.mixer.init(frequency=self.RATE, size=-16, channels=1, buffer=512)
+            pygame.mixer.init(frequency=self.RATE, size=-16, channels=1, buffer=256)
         except pygame.error:
             return
-        for kind, (hz, secs, noise) in self.SPEC.items():
-            self._sounds[kind] = self._make(hz, secs, noise)
-        self._curtain = self._make(500.0, 0.02, True)
+        self.enabled = True
 
-    def curtain_blip(self) -> None:
-        """CURTAIN_FRAME plays priority-3 noise every frame."""
-        if self._curtain is not None:
-            self._curtain.play()
-
-    def _make(self, hz: float, secs: float, noise: bool) -> pygame.mixer.Sound:
-        n = int(self.RATE * secs)
-        rnd = random.Random(int(hz))
-        period = self.RATE / hz
-        samples = array.array('h')
-        for k in range(n):
-            env = 1.0 - k / n
-            if noise:
-                v = rnd.choice((-1.0, 1.0))
-            else:
-                v = 1.0 if (k % period) < period / 2 else -1.0
-            samples.append(int(v * env * 12000))
-        return pygame.mixer.Sound(buffer=samples.tobytes())
+    def request(self, priority: int) -> None:
+        if priority <= 0:
+            return
+        regs = sound_registers(priority, self.rnd)
+        self.last = regs
+        if not self.enabled:
+            return
+        snd = self._cache.get(regs)
+        if snd is None:
+            snd = pygame.mixer.Sound(buffer=self._pokey.render(*regs).tobytes())
+            self._cache[regs] = snd
+        snd.play()
 
     def play(self, events: Sequence[Event]) -> None:
-        if not self._sounds:
-            return
-        best: EventKind | None = None
-        for ev in events:
-            if ev.kind in self._sounds and (best is None or self.SPEC[ev.kind][1] > self.SPEC[best][1]):
-                best = ev.kind             # one blip per tick, the longest wins (cf. SND_PRI)
-        if best is not None:
-            self._sounds[best].play()
+        self.request(sound_priority(events))
+
+    def curtain_blip(self) -> None:
+        """CURTAIN_FRAME: LDA #$03; JSR SND_REQ; JSR SND_PLAY every frame."""
+        self.request(CURTAIN_PRIORITY)

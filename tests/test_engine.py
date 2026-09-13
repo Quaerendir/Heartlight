@@ -451,3 +451,32 @@ def test_load_pending_and_explicit_load_room():
     assert kinds(ev) == [EventKind.ROOM_LOADED] and not e.load_pending
     assert e.grid[idx(1, 0)] == C.HERO and e.grid[idx(2, 0)] == C.HARD_WALL
     assert EventKind.ROOM_LOADED not in kinds(e.tick(NONE))   # tick does not load twice
+
+
+# ---------------------------------------------------------------- sound-relevant events
+def test_events_for_sound_requests():
+    # falling rock deflected off a resting rock: ROCK_ROLLED (LAND_SOUND fires on a roll too)
+    e = Engine([room('% @ %', '%   %', '% @ %')])
+    run(e, 2)                                            # wake, fall: now directly above the rock
+    ev = run(e, 1)                                       # FALL_STEP -> MOVE_FALL rolls down-left
+    assert EventKind.ROCK_ROLLED in kinds(ev) and e.grid[idx(1, 2)] == C.ROCK_FALLING
+    # falling rock onto a bomb: ROCK_HIT the tick the blast is written
+    e = Engine([room('%@%', '% %', '%&%')])
+    ev = run(e, 3)
+    assert EventKind.ROCK_HIT in kinds(ev) and EventKind.BLAST in kinds(ev)
+    # falling heart onto the hero: HEART_HIT
+    e = Engine([room('%$%', '% %', '%*%', hero=False)])
+    ev = run(e, 2)
+    assert EventKind.HEART_HIT in kinds(ev)
+    # bomb exploding on a hard floor: BOMB_HIT when its own cell becomes BLAST
+    e = Engine([room('%&%', '% %')])
+    ev = run(e, 3)
+    assert EventKind.BOMB_HIT in kinds(ev) and e.grid[idx(1, 1)] == C.BLAST
+    # blast animation frames report the frame they had, 0..6, then the cell is empty
+    ev = run(e, 1)
+    assert EventKind.BLAST in kinds(ev)
+    frames = []
+    for _ in range(8):
+        ev = run(e, 1)
+        frames.append(sorted({x.value for x in ev if x.kind is EventKind.BLAST_FRAME}))
+    assert frames == [[0], [1], [2], [3], [4], [5], [6], []]

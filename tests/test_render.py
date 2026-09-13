@@ -10,7 +10,8 @@ import pytest  # noqa: E402
 
 from heartlight import Cell, Engine, Event, EventKind, Input, parse_levels  # noqa: E402
 from heartlight.render import (Renderer, RomData, Sounds, TileState, atari_rgb, bcd_digits,  # noqa: E402
-                               load_rom, SCREEN_W, SCREEN_H)
+                               load_rom, SCREEN_W, SCREEN_H, Pokey, POKEY_CLOCK, POKEY_BASE_DIV,
+                               sound_priority, sound_registers)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -109,11 +110,66 @@ def test_draw_real_room(rom):
     assert surf.get_at((4, 24 * 2 + 4))[:3] != r.bg
 
 
-def test_sounds_build_and_play():
-    s = Sounds(enabled=True)
-    s.play([Event(EventKind.HEART_COLLECTED, 5), Event(EventKind.BLAST, 7, (7,))])
+def test_sound_priority_is_max_of_requests():
+    assert sound_priority([]) == 0
+    assert sound_priority([Event(EventKind.GRASS_EATEN, 1), Event(EventKind.PUSHED, 2)]) == 1
+    assert sound_priority([Event(EventKind.ROCK_LANDED, 1), Event(EventKind.HEART_COLLECTED, 2)]) == 3
+    assert sound_priority([Event(EventKind.BLAST_FRAME, 1, value=0)]) == 4
+    assert sound_priority([Event(EventKind.BLAST_FRAME, 1, value=6), Event(EventKind.BLAST_FRAME, 2, value=2)]) == 10
+    assert sound_priority([Event(EventKind.BLAST, 1, (1,)), Event(EventKind.ROOM_COMPLETE, 1)]) == 0
+
+
+def test_sound_registers_follow_snd_play():
+    rnd = random.Random(1)
+    assert sound_registers(1, rnd) == (0x00, 0x81)
+    assert sound_registers(2, rnd) == (0x04, 0x04)
+    for _ in range(50):
+        audf, audc = sound_registers(3, rnd)
+        assert 8 <= audf <= 23 and audc == 0xA4
+    assert sound_registers(4, rnd) == (0x10, 0x03)
+    assert sound_registers(10, rnd) == (0x10, 0x09)
+
+
+def test_pokey_pure_tone_frequency():
+    pk = Pokey(44100)
+    audf = 23
+    samples = pk.render(audf, 0xA4, seconds=0.1)
+    assert len(samples) == 4410
+    crossings = sum(1 for a, b in zip(samples, samples[1:]) if (a < 0) != (b < 0))
+    expected = 2 * (POKEY_CLOCK / POKEY_BASE_DIV) / (2 * (audf + 1)) * 0.1     # 2 crossings per period
+    assert abs(crossings - expected) <= 3
+    assert max(samples) > 4000 and min(samples) < -4000                        # volume 4 of 15
+
+
+def test_pokey_noise_and_volume():
+    pk = Pokey(44100)
+    one_frame = pk.render(0x00, 0x81)
+    assert len(one_frame) == 882                                               # 20 ms
+    assert max(abs(v) for v in one_frame) <= 20000 * 1 / 15 + 1                # volume 1
+    noise = pk.render(0x10, 0x09, seconds=0.1)                                # 372 pulses in 0.1 s
+    changes = sum(1 for a, b in zip(noise, noise[1:]) if a != b)
+    assert 60 < changes < 372                                                  # irregular, gated
+    tone = pk.render(0x10, 0xA9, seconds=0.1)
+    assert sum(1 for a, b in zip(tone, tone[1:]) if a != b) > 300             # pure tone: every pulse
+    gated = pk.render(0x04, 0x04, seconds=0.1)
+    assert sum(1 for a, b in zip(gated, gated[1:]) if a != b) > 100
+    assert max(pk.render(0x10, 0x00)) == 0                                     # volume 0 is silence
+
+
+def test_sounds_play_uses_max_priority_and_one_frame():
+    s = Sounds(enabled=True, rnd=random.Random(3))
+    s.play([Event(EventKind.GRASS_EATEN, 1), Event(EventKind.ROCK_LANDED, 2)])
+    assert s.last == (0x04, 0x04)
     s.play([])
-    assert Sounds(enabled=False).play([Event(EventKind.BLAST, 7, (7,))]) is None
+    assert s.last == (0x04, 0x04)                                              # silence leaves it
+    s.curtain_blip()
+    assert s.last is not None and s.last[1] == 0xA4
+    s.play([Event(EventKind.BLAST_FRAME, 5, value=6)])
+    assert s.last == (0x10, 0x09)
+    off = Sounds(enabled=False)
+    off.play([Event(EventKind.HEART_COLLECTED, 1)])
+    assert off.last == (None, None) or off.last is not None and off.last[1] == 0xA4
+
 
 
 # ---------------------------------------------------------------- title screen and curtain

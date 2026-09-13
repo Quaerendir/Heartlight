@@ -322,8 +322,17 @@ The loading "curtain" animation is a renderer concern.
 
 ## 7. Things the engine does NOT do
 No sub-tick hero movement, no probability, no "grab without moving", no
-magic walls, no amoeba, no score, no time limit, no level ending. Sound
-priorities (`SND_REQ`) map to Events (§8) — the renderer decides.
+magic walls, no amoeba, no score, no time limit, no level ending.
+
+### 7.1 Sound (renderer, for reference)
+`SND_REQ` keeps the highest priority requested during a scan; `SND_PLAY` then
+programs POKEY channel 1 for exactly one frame. Request sites: grass eaten
+and push = 1; rock landed/rolled/hit, bomb landed/hit = 2; heart collected/
+landed/rolled/hit and every curtain frame = 3; a blast animation cell that
+advances from frame f = f+4. Registers by priority p (Y = p-1):
+Y=0 AUDF $00 AUDC $81; Y=1 AUDF $04 AUDC $04; Y=2 AUDF (RANDOM&15)+8 AUDC
+$A4; Y>=3 AUDF $10 AUDC Y. The engine emits one Event per request site so a
+renderer can reproduce this (`heartlight/render.py`, `Sounds`).
 
 ---
 
@@ -340,10 +349,13 @@ class Cell(IntEnum):          # values = original codes, useful for tests/dumps
 
 @dataclass(frozen=True)
 class Event:                  # renderer/audio hooks, emitted in scan order
-    kind: EventKind           # HEART_COLLECTED, GRASS_EATEN, PUSHED, ROCK_LANDED,
-                              # HEART_LANDED, BOMB_LANDED, BLAST(cells), HERO_DIED,
-                              # ROOM_COMPLETE, EXTRA_LIFE, GAME_OVER
+    kind: EventKind           # HEART_COLLECTED, GRASS_EATEN, PUSHED,
+                              # ROCK_LANDED/ROLLED/HIT, HEART_LANDED/ROLLED/HIT,
+                              # BOMB_LANDED/HIT, BLAST(cells), BLAST_FRAME(value),
+                              # HERO_DIED, ROOM_COMPLETE, ROOM_LOADED, EXTRA_LIFE, GAME_OVER
     cell: int | None          # index, when meaningful
+    cells: tuple[int, ...]    # BLAST: cells written
+    value: int                # BLAST_FRAME: frame before advancing (0..6)
 
 class Engine:
     def __init__(self, rooms: list[str], *, lives: int = 3, extra: int = 2): ...

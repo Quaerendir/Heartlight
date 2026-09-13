@@ -62,9 +62,15 @@ class EventKind(Enum):
     GRASS_EATEN = 'grass_eaten'
     PUSHED = 'pushed'
     ROCK_LANDED = 'rock_landed'
+    ROCK_ROLLED = 'rock_rolled'          # falling rock deflected diagonally (LAND_SOUND fires too)
+    ROCK_HIT = 'rock_hit'                # falling rock came down on a hero or a bomb (HIT_DETONATE)
     HEART_LANDED = 'heart_landed'
-    BOMB_LANDED = 'bomb_landed'
+    HEART_ROLLED = 'heart_rolled'
+    HEART_HIT = 'heart_hit'
+    BOMB_LANDED = 'bomb_landed'          # soft landing on grass
+    BOMB_HIT = 'bomb_hit'                # falling bomb blocked by anything else: explodes (or hero does)
     BLAST = 'blast'
+    BLAST_FRAME = 'blast_frame'          # an animation cell advanced; value = frame it had (0..6)
     HERO_DIED = 'hero_died'
     ROOM_COMPLETE = 'room_complete'
     ROOM_LOADED = 'room_loaded'
@@ -77,6 +83,10 @@ class Event:
     kind: EventKind
     cell: int | None = None                 # grid index, when meaningful
     cells: tuple[int, ...] = ()             # BLAST: every cell written by the blast
+    value: int = 0                          # BLAST_FRAME: the frame number before advancing
+
+
+FELL, ROLLED, LANDED = 0, 1, 2              # _move_fall results
 
 
 class Status(Enum):
@@ -230,8 +240,9 @@ class Engine:
         return self._events
 
     # ------------------------------------------------------------- internals
-    def _emit(self, kind: EventKind, cell: int | None = None, cells: tuple[int, ...] = ()) -> None:
-        self._events.append(Event(kind, cell, cells))
+    def _emit(self, kind: EventKind, cell: int | None = None, cells: tuple[int, ...] = (),
+              value: int = 0) -> None:
+        self._events.append(Event(kind, cell, cells, value))
 
     def _load_room(self) -> None:
         """LOAD_ROOM / PUT_CELL: chars $20..$2F verbatim, anything else is a rock."""
@@ -264,22 +275,25 @@ class Engine:
                 continue
             c = g[i]
             if Cell.ANIM0 <= c <= Cell.ANIM6:
+                self._emit(EventKind.BLAST_FRAME, i, value=c - Cell.ANIM0)   # SND_REQ frame+4
                 g[i] = c + 1 if c < Cell.ANIM6 else Cell.EMPTY
             elif c == Cell.ROCK:
                 self._rest_check(i, Cell.ROCK_WAKING)
             elif c == Cell.ROCK_WAKING:
-                if self._move_fall(i, Cell.ROCK_FALLING, Cell.ROCK):
+                if self._move_fall(i, Cell.ROCK_FALLING, Cell.ROCK) == LANDED:
                     self._emit(EventKind.ROCK_LANDED, i)
             elif c == Cell.ROCK_FALLING:
-                self._fall_step(i, Cell.ROCK_FALLING, Cell.ROCK, EventKind.ROCK_LANDED)
+                self._fall_step(i, Cell.ROCK_FALLING, Cell.ROCK,
+                                (EventKind.ROCK_LANDED, EventKind.ROCK_ROLLED, EventKind.ROCK_HIT))
             elif c == Cell.HEART:
                 self._rest_check(i, Cell.HEART_FALLING)     # no waking state for hearts
             elif c == Cell.HEART_FALLING:
-                self._fall_step(i, Cell.HEART_FALLING, Cell.HEART, EventKind.HEART_LANDED)
+                self._fall_step(i, Cell.HEART_FALLING, Cell.HEART,
+                                (EventKind.HEART_LANDED, EventKind.HEART_ROLLED, EventKind.HEART_HIT))
             elif c == Cell.BOMB:
                 self._rest_check(i, Cell.BOMB_WAKING)
             elif c == Cell.BOMB_WAKING:
-                if self._move_fall(i, Cell.BOMB_FALLING, Cell.BOMB):
+                if self._move_fall(i, Cell.BOMB_FALLING, Cell.BOMB) == LANDED:
                     self._emit(EventKind.BOMB_LANDED, i)
             elif c == Cell.BOMB_FALLING:
                 self._bomb_fall(i)
@@ -303,35 +317,42 @@ class Engine:
         if (self._empty(i, L) and self._empty(i, DL)) or (self._empty(i, R) and self._empty(i, DR)):
             self._grid[i] = wake
 
-    def _move_fall(self, i: int, falling: int, rest: int) -> bool:
-        """MOVE_FALL: fall one cell, or roll one diagonal, or land. Returns True on landing."""
+    def _move_fall(self, i: int, falling: int, rest: int) -> int:
+        """MOVE_FALL: fall one cell, or roll one diagonal, or land. Returns FELL/ROLLED/LANDED
+        (the original returns C=1 for both ROLLED and LANDED, which is what LAND_SOUND uses)."""
         g = self._grid
         g[i] = Cell.EMPTY
         b, j = self._probe(i, D)
         if b == Cell.EMPTY:
             g[j], self._moved[j] = falling, 1
-            return False
+            return FELL
         if b in (Cell.GRASS, Cell.HARD_WALL):
             g[i] = rest
-            return True
+            return LANDED
         if self._empty(i, DL) and self._empty(i, L):
             j = i + _DIDX[DL]
         elif self._empty(i, DR) and self._empty(i, R):
             j = i + _DIDX[DR]
         else:
             g[i] = rest
-            return True
+            return LANDED
         g[j], self._moved[j] = falling, 1
-        return False
+        return ROLLED
 
-    def _fall_step(self, i: int, falling: int, rest: int, landed: EventKind) -> None:
+    def _fall_step(self, i: int, falling: int, rest: int,
+                   kinds: tuple[EventKind, EventKind, EventKind]) -> None:
         """FALL_STEP (rock/heart in flight): hitting hero/bomb detonates the cell below."""
+        landed, rolled, hit = kinds
         b, j = self._probe(i, D)
         if b in (Cell.HERO, Cell.BOMB, Cell.BOMB_FALLING):
             self._grid[j] = Cell.BLAST                       # no moved flag: explodes this tick
+            self._emit(hit, j)                               # HIT_DETONATE -> LAND_SOUND
             return
-        if self._move_fall(i, falling, rest):
+        r = self._move_fall(i, falling, rest)
+        if r == LANDED:
             self._emit(landed, i)
+        elif r == ROLLED:
+            self._emit(rolled, i)
 
     def _bomb_fall(self, i: int) -> None:
         """H_BOMB_FALL."""
@@ -340,11 +361,13 @@ class Engine:
             self._move_fall(i, Cell.BOMB_FALLING, Cell.BOMB)
         elif b == Cell.HERO:
             self._grid[j] = Cell.BLAST                       # hero cell explodes this tick
+            self._emit(EventKind.BOMB_HIT, j)
         elif b == Cell.GRASS:
             self._grid[i] = Cell.BOMB                        # soft landing
             self._emit(EventKind.BOMB_LANDED, i)
         else:
             self._grid[i] = Cell.BLAST                       # own cell: explodes next tick
+            self._emit(EventKind.BOMB_HIT, i)
 
     def _blast(self, i: int) -> None:
         """H_BLAST: plus-shaped; hard walls and the border survive; resting bombs chain."""
