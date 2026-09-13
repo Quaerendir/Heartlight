@@ -96,3 +96,12 @@ for priority 3, blast frames getting louder) through a small POKEY channel
 emulation (17/5/4-bit polynomial counters, 64 kHz divider). The two `[EMU]`
 constants (`DEATH_TICKS`, initial tick parity) still await confirmation in an
 emulator.
+
+## License
+
+The conversion (extractor, disassembler, engine, front end, tests, specs) is
+released under the MIT licence, see `LICENSE`. The original game and the
+material derived from it (`heartlight.bas`, the article, `game.bin`,
+`levels.txt`, `game.asm`, screenshots) remain (C) 1990 Janusz Pelc /
+Tajemnice ATARI and are included for preservation and study only, see
+`NOTICE`.

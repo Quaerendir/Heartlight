@@ -3,6 +3,8 @@ name = "heartlight"
 version = "0.1.0"
 description = "Heartlight (Atari 8-bit, 1990) -- deterministic game engine reconstructed from the original code"
 authors = [{ name = "Quaerendir" }]
+license = "MIT"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.11"
 dependencies = []
 

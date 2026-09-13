@@ -1,0 +1,25 @@
+Third-party material in this repository
+=======================================
+
+HEARTLIGHT is (C) 1990 Janusz Pelc / Tajemnice ATARI. The following files
+are the original game or are derived from it and remain under the original
+authors' copyright. They are included for preservation, study and
+interoperability with the reconstruction; they are not licensed under the MIT
+licence in LICENSE and no rights to them are granted by this repository:
+
+  heartlight.bas        the type-in listing as printed in Tajemnice ATARI 1/91
+  1_91_heartlight.html  the magazine article containing the listing, as
+                        published by the unofficial "Tajemnice Atari"
+                        electronic archive (Pixel, 2001)
+  game.bin, loader.bin  6502 machine code decoded from the listing
+  levels.txt, meta.json room layouts, colours and parameters from the listing
+  game.asm              disassembly of game.bin (the machine code is the
+                        original authors'; the labels and comments are ours)
+  docs/*.png            screenshots rendered from the original graphics
+
+The title screen of the original uses the Atari 8-bit OS character set, which
+is (C) Atari and is deliberately not part of this repository; see --os-font in
+heartlight/play.py.
+
+If you are a rights holder and object to the inclusion of any of this material,
+please open an issue and it will be removed.
