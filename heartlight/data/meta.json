@@ -1,0 +1,30 @@
+{
+  "source": "heartlight.bas",
+  "colors_708_712": [
+    4,
+    6,
+    14,
+    10,
+    0
+  ],
+  "lives": 3,
+  "extra": 2,
+  "rooms": 4,
+  "game_bin": {
+    "size": 2292,
+    "load_addr": "$9014",
+    "entry_PLAY": "$9260",
+    "entry_offset_in_bin": 588,
+    "checksum_failures": []
+  },
+  "loader_bin": {
+    "size": 143,
+    "load_addr": "$0600"
+  },
+  "data_layout": {
+    "params_addr": "$7000",
+    "title_addr": "$7003",
+    "rooms_addr": "$7017",
+    "room_size": 240
+  }
+}

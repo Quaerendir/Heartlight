@@ -21,7 +21,7 @@ from .engine import ROOM_W, Cell, Engine, Input, Status, parse_levels
 from .render import (FPS, FRAMES_PER_TICK, Curtain, Renderer, Sounds, TextFont, TileState,
                      TitleScreen, load_os_font, load_rom, parse_title_banner)
 
-ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = Path(__file__).resolve().parent / 'data'      # game.bin, meta.json, levels.txt (pipeline outputs)
 
 KEYMAP: dict[int, Input] = {
     pygame.K_UP: Input.UP, pygame.K_DOWN: Input.DOWN, pygame.K_LEFT: Input.LEFT, pygame.K_RIGHT: Input.RIGHT,
@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument('--no-title', action='store_true', help='skip the title screen')
     ap.add_argument('--os-font', type=Path, default=os.environ.get('HEARTLIGHT_OS_FONT'),
                     help='Atari OS charset (1 KB) or OS ROM image, for the title screen')
-    ap.add_argument('--data', type=Path, default=ROOT, help='directory with game.bin, meta.json, levels.txt')
+    ap.add_argument('--data', type=Path, default=DATA_DIR, help='directory with game.bin, meta.json, levels.txt')
     args = ap.parse_args(argv)
 
     rom = load_rom(args.data / 'game.bin', args.data / 'meta.json')

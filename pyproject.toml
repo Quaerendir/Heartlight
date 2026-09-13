@@ -1,16 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "heartlight"
 version = "0.1.0"
-description = "Heartlight (Atari 8-bit, 1990) -- deterministic game engine reconstructed from the original code"
+description = "Heartlight (Atari 8-bit, Janusz Pelc 1990): the original game reconstructed from its 6502 code as a deterministic Python engine with a pygame front end"
+readme = "README.md"
+requires-python = ">=3.11"
 authors = [{ name = "Quaerendir" }]
 license = "MIT"
 license-files = ["LICENSE", "NOTICE"]
-requires-python = ">=3.11"
-dependencies = []
+keywords = ["atari", "atari-8-bit", "6502", "heartlight", "boulder-dash", "retro", "pygame", "pokey", "game-preservation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Games/Entertainment :: Puzzle Games",
+    "Topic :: System :: Emulators",
+    "Typing :: Typed",
+]
+dependencies = ["pygame-ce>=2.5"]
 
 [project.optional-dependencies]
-play = ["pygame-ce"]
-test = ["pytest", "hypothesis", "mypy", "pygame-ce"]
+test = ["pytest", "hypothesis", "mypy"]
+disasm = ["py65"]
+
+[project.urls]
+Homepage = "https://github.com/Quaerendir/Heartlight"
+Source = "https://github.com/Quaerendir/Heartlight"
+Issues = "https://github.com/Quaerendir/Heartlight/issues"
+Changelog = "https://github.com/Quaerendir/Heartlight/releases"
+
+[project.scripts]
+heartlight = "heartlight.play:main"
+
+[tool.setuptools]
+packages = ["heartlight"]
+
+[tool.setuptools.package-data]
+heartlight = ["data/*", "py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -246,3 +246,10 @@ def test_curtain_sequence():
     assert c.step() and c.cells == target
     assert not c.step() and not c.running
     assert Curtain(start, target, random.Random(7)).cells is not start
+
+
+def test_package_data_matches_pipeline_outputs():
+    """heartlight/data/ ships copies of the stage-1 outputs; they must not drift."""
+    from heartlight.play import DATA_DIR
+    for name in ('game.bin', 'meta.json', 'levels.txt'):
+        assert (DATA_DIR / name).read_bytes() == (ROOT / name).read_bytes(), name
