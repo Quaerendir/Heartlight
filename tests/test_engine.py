@@ -466,8 +466,8 @@ def test_events_for_sound_requests():
     assert EventKind.ROCK_HIT in kinds(ev) and EventKind.BLAST in kinds(ev)
     # falling heart onto the hero: HEART_HIT
     e = Engine([room('%$%', '% %', '%*%', hero=False)])
-    ev = run(e, 2)
-    assert EventKind.HEART_HIT in kinds(ev)
+    ev = run(e, 3)                                       # wake in place, fall, hit
+    assert EventKind.HEART_HIT in kinds(ev) and EventKind.HERO_DIED in kinds(ev)
     # bomb exploding on a hard floor: BOMB_HIT when its own cell becomes BLAST
     e = Engine([room('%&%', '% %')])
     ev = run(e, 3)
