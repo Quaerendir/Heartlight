@@ -145,7 +145,7 @@ def test_t4b_heart_has_no_waking_state_and_kills():
 
 # ---------------------------------------------------------------- T5
 def test_t5_push_rock_on_even_tick():
-    e = Engine([room('%*@ %', hero=False)])
+    e = Engine([room('%*@ %', hero=False)], initial_tick=0)
     assert e.state.tick == 0
     ev = e.tick(RIGHT)
     assert EventKind.PUSHED in kinds(ev)
@@ -153,7 +153,7 @@ def test_t5_push_rock_on_even_tick():
 
 
 def test_t5_push_fails_on_odd_tick_then_succeeds():
-    e = Engine([room('%*@ %', hero=False)])
+    e = Engine([room('%*@ %', hero=False)], initial_tick=0)
     e.tick(NONE)                                   # tick counter -> 1
     e.tick(RIGHT)
     assert e.grid[idx(1, 0)] == C.HERO and e.grid[idx(2, 0)] == C.ROCK
@@ -163,13 +163,13 @@ def test_t5_push_fails_on_odd_tick_then_succeeds():
 
 
 def test_t5_push_blocked_by_wall():
-    e = Engine([room('%*@%', hero=False)])
+    e = Engine([room('%*@%', hero=False)], initial_tick=0)
     e.tick(RIGHT)
     assert e.grid[idx(1, 0)] == C.HERO and e.grid[idx(2, 0)] == C.ROCK
 
 
 def test_t5_push_bomb_does_not_detonate():
-    e = Engine([room('%*& %', hero=False)])
+    e = Engine([room('%*& %', hero=False)], initial_tick=0)
     e.tick(RIGHT)
     assert e.grid[idx(3, 0)] == C.BOMB and e.grid[idx(2, 0)] == C.HERO
     run(e, 5)
@@ -177,7 +177,7 @@ def test_t5_push_bomb_does_not_detonate():
 
 
 def test_t5_cannot_push_falling_rock_or_vertically():
-    e = Engine([room('%*( %', hero=False)])       # '(' loads verbatim as ROCK_FALLING
+    e = Engine([room('%*( %', hero=False)], initial_tick=0)       # '(' loads verbatim as ROCK_FALLING
     e.tick(RIGHT)
     assert e.grid[idx(1, 0)] == C.HERO
     e = Engine([room('%@%', '%*%', hero=False)])
@@ -186,7 +186,7 @@ def test_t5_cannot_push_falling_rock_or_vertically():
 
 
 def test_t5_pushed_rock_keeps_rest_state_then_wakes():
-    e = Engine([room('%*@ %', '%%% %', hero=False)])
+    e = Engine([room('%*@ %', '%%% %', hero=False)], initial_tick=0)
     e.tick(RIGHT)
     assert e.grid[idx(3, 0)] == C.ROCK
     e.tick(NONE)
@@ -480,3 +480,16 @@ def test_events_for_sound_requests():
         ev = run(e, 1)
         frames.append(sorted({x.value for x in ev if x.kind is EventKind.BLAST_FRAME}))
     assert frames == [[0], [1], [2], [3], [4], [5], [6], []]
+
+
+def test_default_initial_tick_is_the_loader_checksum_residue():
+    """$D0 holds the last hex line's checksum ($4B, odd) when PLAY starts: no push on tick 1."""
+    e = Engine([room('%*@ %', hero=False)])
+    assert e.state.tick == 0x4B
+    e.tick(RIGHT)
+    assert e.grid[idx(1, 0)] == C.HERO and e.grid[idx(2, 0)] == C.ROCK
+    e.tick(RIGHT)
+    assert e.grid[idx(2, 0)] == C.HERO and e.grid[idx(3, 0)] == C.ROCK
+    e = Engine([room('%*%', hero=False)], initial_tick=0xFF)
+    e.tick(NONE)
+    assert e.state.tick == 0                                    # one-byte counter wraps

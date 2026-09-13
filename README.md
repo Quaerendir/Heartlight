@@ -29,6 +29,7 @@ pygame front end): **Quaerendir**.
 | `heartlight/play.py` | stage 4: the playable game (`heartlight` / `python -m heartlight.play`) |
 | `heartlight/data/` | copies of `game.bin`, `meta.json`, `levels.txt` shipped inside the package |
 | `docs/*.png` | screenshots rendered from the extracted data (title, curtain, rooms) |
+| `tools/verify_timing.py` | runs the original loader and game code in py65 to confirm the timing constants |
 
 ## Usage
 
@@ -95,9 +96,11 @@ tested against `SPEC.md`. Stage 4 (pygame) playable with title screen,
 curtain and sound: `SND_REQ`/`SND_PLAY` are reproduced register for register
 (priority per event, AUDF/AUDC tables, one PAL frame per blip, random pitch
 for priority 3, blast frames getting louder) through a small POKEY channel
-emulation (17/5/4-bit polynomial counters, 64 kHz divider). The two `[EMU]`
-constants (`DEATH_TICKS`, initial tick parity) still await confirmation in an
-emulator.
+emulation (17/5/4-bit polynomial counters, 64 kHz divider). The timing
+constants (11 scans of death sequence, tick counter starting at $4B, first
+scan of a room without delay, 3 frames per curtain step) were confirmed by
+running the original 6502 code in py65 (`tools/verify_timing.py`), which the
+test suite repeats. Nothing in the reconstruction is guessed any more.
 
 ## License
 

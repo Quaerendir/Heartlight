@@ -18,8 +18,8 @@ from pathlib import Path
 import pygame
 
 from .engine import ROOM_W, Cell, Engine, Input, Status, parse_levels
-from .render import (FPS, FRAMES_PER_TICK, Curtain, Renderer, Sounds, TextFont, TileState,
-                     TitleScreen, load_os_font, load_rom, parse_title_banner)
+from .render import (CURTAIN_FRAMES_PER_STEP, FPS, FRAMES_PER_TICK, Curtain, Renderer, Sounds, TextFont,
+                     TileState, TitleScreen, load_os_font, load_rom, parse_title_banner)
 
 DATA_DIR = Path(__file__).resolve().parent / 'data'      # game.bin, meta.json, levels.txt (pipeline outputs)
 
@@ -97,10 +97,14 @@ def main(argv: list[str] | None = None) -> int:
     shown: list[int] = [Cell.EMPTY] * (ROOM_W * 12)      # CLR_GRID: the first curtain starts from blank
     mode = Screen.TITLE
     frame = 0
+    tick_due = 0                                           # frame of the next scan (CDTMV2 model)
+    timer_armed = False                                    # CDTMV2 is 0 when a room starts: two quick scans
+    tick_carry: int | None = None                          # TICK ($D0) is never reset by the original
 
     def start_game() -> None:
         nonlocal engine, tiles, curtain, mode
-        engine = Engine(rooms, lives=lives, extra=extra, start_room=args.room - 1)
+        kw = {} if tick_carry is None else {'initial_tick': tick_carry}
+        engine = Engine(rooms, lives=lives, extra=extra, start_room=args.room - 1, **kw)
         tiles = TileState(dict(rom.tile_tab))
         tiles.on_room_loaded()
         curtain = Curtain(shown, engine.grid)
@@ -124,12 +128,13 @@ def main(argv: list[str] | None = None) -> int:
         if mode is Screen.TITLE:
             title.draw(screen)
         elif mode is Screen.CURTAIN and curtain is not None and engine is not None:
-            curtain.step()
-            sounds.curtain_blip()
+            if frame % CURTAIN_FRAMES_PER_STEP == 0:
+                curtain.step()
+                sounds.curtain_blip()
             renderer.draw_status(screen, engine.state.lives, engine.state.room)
             renderer.draw_grid(screen, curtain.cells, tiles)
             if not curtain.running:
-                mode, frame = Screen.PLAY, 0
+                mode, tick_due, timer_armed = Screen.PLAY, frame + 1, False
         elif mode is Screen.PLAY and engine is not None:
             if engine.load_pending:                              # win or death: LOAD_ROOM with curtain
                 previous = list(shown)
@@ -138,12 +143,17 @@ def main(argv: list[str] | None = None) -> int:
                 curtain = Curtain(previous, engine.grid)
                 mode = Screen.CURTAIN
                 continue
-            if frame % FRAMES_PER_TICK == 0:
+            if frame >= tick_due:
                 inp = read_input(joystick)
                 tick_before = engine.state.tick
                 events = engine.tick(inp)
                 tiles.after_tick(inp, tick_before, engine.state.hearts_left)
                 sounds.play(events)
+                # WAIT_TICK: the first scan after a load finds CDTMV2 already at 0 and does not
+                # wait; from then on every scan waits for the 6-frame timer.
+                tick_due = frame + (FRAMES_PER_TICK if timer_armed else 1)
+                timer_armed = True
+                tick_carry = engine.state.tick
                 if engine.state.status is Status.GAME_OVER:      # JMP PLAY: back to the title
                     mode = Screen.TITLE
             shown = [int(c) for c in engine.grid]

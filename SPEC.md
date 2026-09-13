@@ -9,8 +9,9 @@ Original: Janusz Pelc, 1990, Atari 8-bit, published in Tajemnice ATARI 1/91
 (labels in `CAPITALS` refer to that file). The previous spec is kept as
 `SPEC.v1.md`; where v2 contradicts it, v2 wins.
 
-Residual uncertainties are tagged **[EMU]** — they concern timing/hardware,
-not game logic, and can be confirmed in Altirra. Everything else is fixed.
+There are no open uncertainties left: the two timing constants that v2 first
+tagged [EMU] were confirmed by running the original 6502 code in py65 with a
+minimal OS model (`tools/verify_timing.py`, kept as a regression test).
 
 ---
 
@@ -98,6 +99,10 @@ reproduce exactly:
 
 Tick rate in the original: one scan every 6 frames (`WAIT_TICK`, CDTMV2=6),
 i.e. 8.33 Hz PAL. The engine is tick-pure; the renderer owns the clock.
+Pacing quirk (renderer): the first scan of every room finds CDTMV2 already at
+zero and does not wait, so the first two scans of a room are one frame apart
+and the 6-frame cadence starts with the second. Sound never changes the
+cadence (`SND_PLAY`'s two frames overlap the countdown).
 
 ### 2.1 PROBE (neighbour lookup)
 Directions and index deltas (`DX_TAB`/`DY_TAB`/`DIDX_TAB`):
@@ -232,9 +237,15 @@ bomb never detonates it. Pushed objects keep their rest code and wake next
 tick if unsupported.
 
 ### 4.2 Tick counter
-`tick_counter` starts at 0 at engine construction and increments after every
-scan. [EMU: the original uses an uninitialised zero-page byte, so the parity
-phase at game start is arbitrary; 0 is the chosen convention.]
+`tick_counter` is a one-byte counter incremented after every scan (`INC TICK`)
+and **never reset** by the game — not on room change, death or game over.
+Its value when `PLAY` starts is **$4B**: the game never initialises `$D0`,
+BASIC leaves `$CB-$D1` alone, and the listing's hex-line decoder (`loader.bin`,
+`RHEX`) uses `$D0` as its checksum accumulator, so after the last hex line
+(11930) it holds that line's checksum byte. Confirmed by running the loader
+and the game in py65 (`tools/verify_timing.py`). Odd, so the very first tick
+of a freshly loaded game cannot push. `Engine(initial_tick=...)` lets a front
+end carry the counter across games as the original does.
 
 ### 4.3 Exit
 When hearts_left == 0 the exit is open (the original only blinks the tile,
@@ -302,9 +313,10 @@ load room
 ```
 
 ### 6.2 Death sequence (`HERO_DEAD`, `DEATH_WAIT`)
-The engine keeps ticking with input NONE for `DEATH_TICKS` ticks so the
-explosion plays out [EMU: original waits 64 frames ≈ 10–11 scans;
-`DEATH_TICKS = 10`], then:
+The engine keeps ticking with input NONE for `DEATH_TICKS = 11` ticks so the
+explosion plays out (CDTMV3 = 64 frames; scans end every 6 frames, so the
+11th scan is the one that finds the timer at zero — 66 frames; confirmed in
+py65), then:
 ```
 lives -= 1
 if lives < 0: game over (title screen)
@@ -315,8 +327,10 @@ default `lives = 3` the player gets **four** attempts. Reproduce this.
 
 ### 6.3 Initial state (`TITLE_INIT`, `LOAD_ROOM`)
 `lives = meta.lives (3)`, `extra_counter = meta.extra (2)`, `room = 0`,
-`tick_counter = 0`, all cells at rest as loaded, `hearts_left = count('$')`.
-The loading "curtain" animation is a renderer concern.
+`tick_counter = $4B` (§4.2), all cells at rest as loaded,
+`hearts_left = count('$')`. The loading "curtain" animation is a renderer
+concern: 2 phases × (25 rounds + full fill), one step every 3 frames
+(`CURTAIN_FRAME` = WAIT_VBL plus the two frames of `SND_PLAY`), ≈ 3.1 s.
 
 ---
 
@@ -374,7 +388,8 @@ Hard requirements:
 - The scan must be implemented literally as in §2 (single pass, in-place
   writes, `moved` flags), not as "collect then apply". Several tests below
   depend on same-tick propagation.
-- `[EMU]` values (`DEATH_TICKS`, initial tick parity) as module-level constants.
+- `DEATH_TICKS` and `INITIAL_TICK` as module-level constants, checked against
+  the original code by `tests/test_timing_vs_original.py`.
 - Type-annotated, mypy-clean.
 
 ---

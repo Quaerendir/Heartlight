@@ -16,10 +16,14 @@ from typing import Sequence
 ROOM_W, ROOM_H = 20, 12
 ROOM_CELLS = ROOM_W * ROOM_H
 
-# [EMU] the original waits 64 frames (~10-11 scans) after the last hero is gone.
-DEATH_TICKS = 10
-# [EMU] the original's tick counter is an uninitialised zero-page byte; we start at 0.
-INITIAL_TICK = 0
+# DEATH_WAIT: CDTMV3 = 64 frames; scans end every 6 frames, so the 11th scan is the one that
+# finds the timer at zero (tools/verify_timing.py runs the original code to confirm this).
+DEATH_TICKS = 11
+# TICK ($D0) is never initialised by the game. Under BASIC $CB-$D1 are the user's; the
+# listing's hex-line decoder (loader.bin, RHEX) uses $D0 as its checksum accumulator, so at
+# PLAY it still holds the checksum byte of the last hex line (11930): $4B. Odd, hence the
+# first tick of a freshly loaded game cannot push. Confirmed by tools/verify_timing.py.
+INITIAL_TICK = 0x4B
 
 
 class Input(Enum):
@@ -143,7 +147,7 @@ class Engine:
     """One instance = one game (title -> rooms -> game over)."""
 
     def __init__(self, rooms: Sequence[str], *, lives: int = 3, extra: int = 2,
-                 start_room: int = 0) -> None:
+                 start_room: int = 0, initial_tick: int = INITIAL_TICK) -> None:
         if not rooms:
             raise ValueError('need at least one room')
         self._rooms = [_normalize_room(r) for r in rooms]
@@ -154,7 +158,7 @@ class Engine:
         self.lives = lives                       # TITLE_INIT
         self.extra_counter = extra
         self.room = start_room
-        self.tick_counter = INITIAL_TICK
+        self.tick_counter = initial_tick & 0xFF   # TICK survives game over in the original: pass it on
         self.hearts_left = 0
         self.room_done = False
         self.status = Status.PLAYING
@@ -302,7 +306,7 @@ class Engine:
             elif c == Cell.HERO:
                 self._hero(i, inp)
         moved[:] = bytes(ROOM_CELLS)                        # CLR_MOVED
-        self.tick_counter += 1
+        self.tick_counter = (self.tick_counter + 1) & 0xFF  # INC TICK (one byte)
 
     def _rest_check(self, i: int, wake: int) -> None:
         """REST_CHECK: an object at rest decides whether to wake (no movement this tick)."""

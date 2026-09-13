@@ -43,6 +43,7 @@ TITLE_TEXT_ADDR = 0x92CC         # 3 x 20 bytes: mode-7 "HEARTLIGHT", mode-6 aut
 TITLE_LAYOUT = ((0, 7), (24, 6), (64, 6), (80, 6))   # DL_TITLE: (top scanline, ANTIC mode) per text line
 TEXT_COLS = 20                   # modes 6/7 are 20 chars wide, 16 hi-res pixels each
 CURTAIN_ROUNDS, CURTAIN_PER_ROUND = 25, 40           # CURTAIN: LDX #$19 rounds of LDX #$28 random cells
+CURTAIN_FRAMES_PER_STEP = 3      # CURTAIN_FRAME: WAIT_VBL + the two WAIT_VBLs inside SND_PLAY
 
 
 @dataclass(frozen=True)
