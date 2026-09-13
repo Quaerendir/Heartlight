@@ -1,0 +1,16 @@
+[project]
+name = "heartlight"
+version = "0.1.0"
+description = "Heartlight (Atari 8-bit, 1990) -- deterministic game engine reconstructed from the original code"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest", "hypothesis", "mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.mypy]
+strict = true

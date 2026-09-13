@@ -19,6 +19,8 @@ engine in Python and later a pygame front end.
 | `game.asm` | annotated disassembly of `game.bin` |
 | `SPEC.md` | engine specification **v2**, every rule traced to a label in `game.asm` |
 | `SPEC.v1.md` | earlier spec written from Boulder-Dash folklore, kept for the diff |
+| `heartlight/engine.py` | stage 3: the engine, a literal re-implementation of the scan in `game.asm` |
+| `tests/test_engine.py` | acceptance tests T1–T13 from `SPEC.md` §9 plus checks on the real rooms |
 
 ## Usage
 
@@ -29,6 +31,18 @@ python3 heartlight_disasm.py game.bin 9464 940E 93C9 9402 93B3 93BF 93CE 947C 94
 ```
 The hex arguments are the jump-table entries at `$98E0` (object handlers),
 which control-flow analysis cannot reach on its own.
+
+```
+pip install pytest hypothesis mypy
+python3 -m pytest -q          # 33 tests
+python3 -m mypy heartlight/   # strict
+```
+
+```python
+from heartlight import Engine, Input, parse_levels
+e = Engine(parse_levels(open('levels.txt').read()))
+events = e.tick(Input.RIGHT)   # one physics scan; e.grid, e.state
+```
 
 ## Memory map (from the BASIC loader, lines 230–240)
 
@@ -46,5 +60,7 @@ which control-flow analysis cannot reach on its own.
 ## Status
 
 Stage 1 done and verified (all 191 hex-line checksums pass, outputs reproduce
-bit-for-bit). Stage 2 (disassembly) done. Stage 3 (engine) is specified in
-`SPEC.md` and not yet implemented.
+bit-for-bit). Stage 2 (disassembly) done. Stage 3 (engine) implemented and
+tested against `SPEC.md`; the two `[EMU]` constants (`DEATH_TICKS`, initial
+tick parity) still await confirmation in an emulator. Stage 4 (pygame) not
+started.
