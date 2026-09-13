@@ -132,15 +132,18 @@ def _normalize_room(room: str) -> str:
 class Engine:
     """One instance = one game (title -> rooms -> game over)."""
 
-    def __init__(self, rooms: Sequence[str], *, lives: int = 3, extra: int = 2) -> None:
+    def __init__(self, rooms: Sequence[str], *, lives: int = 3, extra: int = 2,
+                 start_room: int = 0) -> None:
         if not rooms:
             raise ValueError('need at least one room')
         self._rooms = [_normalize_room(r) for r in rooms]
+        if not 0 <= start_room < len(self._rooms):
+            raise ValueError(f'start_room {start_room} out of range')
         self._lives_param = lives
         self._extra_param = extra
         self.lives = lives                       # TITLE_INIT
         self.extra_counter = extra
-        self.room = 0
+        self.room = start_room
         self.tick_counter = INITIAL_TICK
         self.hearts_left = 0
         self.room_done = False
@@ -197,6 +200,19 @@ class Engine:
             self.status = Status.DYING
             self._death_ticks = DEATH_TICKS
             self._emit(EventKind.HERO_DIED)
+        return self._events
+
+    def abort_room(self) -> list[Event]:
+        """ESC in the original (HERO_DEAD): every hero becomes a blast, then the death sequence."""
+        self._events = []
+        if self.status is not Status.PLAYING or self._pending_load:
+            return []
+        for i, c in enumerate(self._grid):
+            if c == Cell.HERO:
+                self._grid[i] = Cell.BLAST
+        self.status = Status.DYING
+        self._death_ticks = DEATH_TICKS
+        self._emit(EventKind.HERO_DIED)
         return self._events
 
     # ------------------------------------------------------------- internals

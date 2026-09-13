@@ -418,3 +418,24 @@ def test_real_rooms_survive_random_play():
         for _ in range(500):
             e.tick(rnd.choice(list(Input)))
         assert all(isinstance(c, Cell) for c in e.grid)
+
+
+# ---------------------------------------------------------------- extras used by the renderer
+def test_abort_room_is_suicide():
+    e = Engine([room('%*   *%', hero=False)])
+    ev = e.abort_room()
+    assert EventKind.HERO_DIED in kinds(ev) and e.state.status is Status.DYING
+    assert e.grid[idx(1, 0)] == C.BLAST and e.grid[idx(5, 0)] == C.BLAST
+    ev = e.tick(NONE)
+    assert kinds(ev).count(EventKind.BLAST) == 2
+    run(e, DEATH_TICKS - 1)
+    assert e.state.lives == 2 and e.state.status is Status.PLAYING
+    assert e.abort_room() == []                     # not while dying/loading
+
+
+def test_start_room():
+    rooms = parse_levels(LEVELS.read_text())
+    e = Engine(rooms, start_room=3)
+    assert e.state.room == 3 and e.grid.count(C.HERO) == 2
+    with pytest.raises(ValueError):
+        Engine(rooms, start_room=4)

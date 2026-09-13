@@ -21,6 +21,9 @@ engine in Python and later a pygame front end.
 | `SPEC.v1.md` | earlier spec written from Boulder-Dash folklore, kept for the diff |
 | `heartlight/engine.py` | stage 3: the engine, a literal re-implementation of the scan in `game.asm` |
 | `tests/test_engine.py` | acceptance tests T1–T13 from `SPEC.md` §9 plus checks on the real rooms |
+| `heartlight/render.py` | stage 4: charset from `game.bin`, GTIA palette, tile animation, sound blips |
+| `heartlight/play.py` | stage 4: the playable game (`python -m heartlight.play`) |
+| `docs/room1.png` | screenshot rendered from the extracted data |
 
 ## Usage
 
@@ -37,6 +40,18 @@ pip install pytest hypothesis mypy
 python3 -m pytest -q          # 33 tests
 python3 -m mypy heartlight/   # strict
 ```
+
+```
+pip install pygame-ce
+python3 -m heartlight.play [--scale 3] [--room 1] [--no-sound]
+```
+Arrows / WASD / the original `- = + *`, joystick hat or stick; ESC gives the
+room up (as in the original), Q quits, any key restarts after game over.
+The screen is the original layout: a 40x24 ANTIC mode-4 playfield with 2x2
+characters per cell, the mode-5 status line (hero icon, lives, room), the
+five colour registers from `meta.json`, 6 frames per tick at 50 Hz.
+
+![room 1](docs/room1.png)
 
 ```python
 from heartlight import Engine, Input, parse_levels
@@ -61,6 +76,7 @@ events = e.tick(Input.RIGHT)   # one physics scan; e.grid, e.state
 
 Stage 1 done and verified (all 191 hex-line checksums pass, outputs reproduce
 bit-for-bit). Stage 2 (disassembly) done. Stage 3 (engine) implemented and
-tested against `SPEC.md`; the two `[EMU]` constants (`DEATH_TICKS`, initial
-tick parity) still await confirmation in an emulator. Stage 4 (pygame) not
-started.
+tested against `SPEC.md`. Stage 4 (pygame) playable; sound is a synthesised
+stand-in for the POKEY blips, there is no title screen and no room-loading
+curtain. The two `[EMU]` constants (`DEATH_TICKS`, initial tick parity) still
+await confirmation in an emulator.

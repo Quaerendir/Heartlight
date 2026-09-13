@@ -6,7 +6,8 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-test = ["pytest", "hypothesis", "mypy"]
+play = ["pygame-ce"]
+test = ["pytest", "hypothesis", "mypy", "pygame-ce"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
