@@ -4,6 +4,10 @@ Clean reconstruction of Janusz Pelc's *Heartlight* as published in
 **Tajemnice ATARI 1/91** (type-in listing). Goal: a faithful, deterministic
 engine in Python and later a pygame front end.
 
+Original game: Janusz Pelc, (C) 1990 Tajemnice ATARI.
+Conversion (extraction pipeline, disassembly, specification, engine and
+pygame front end): **Quaerendir**.
+
 ## Files
 
 | file | what |
