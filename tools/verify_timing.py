@@ -8,7 +8,7 @@
    idle), press START, wait for the room, press ESC and count SCAN calls between
    `STA CDTMV3` ($933F) and `DEC LIVES` ($934A).
 
-Usage: python3 tools/verify_timing.py [heartlight.bas]
+Usage: python3 tools/verify_timing.py [heartlight.bas] [--xex]   (--xex: boot heartlight.xex instead)
 """
 from __future__ import annotations
 
@@ -70,7 +70,9 @@ def check_loader(bas: Path) -> int:
     return mem[0x00D0]
 
 
-def run_game(initial_tick: int) -> dict[str, int]:
+def run_game(initial_tick: int | None = None, xex: Path | None = None) -> dict[str, int]:
+    """Run from PLAY. Either lay the memory out by hand (as the BASIC loader does) with the
+    given initial TICK, or load a heartlight.xex like DOS would and start at its RUNAD."""
     mem = ObservableMemory()
     rnd = random.Random(1990)
     state = {'console': 0x06, 'frames': 0}                  # START pressed (bit 0 low)
@@ -80,20 +82,24 @@ def run_game(initial_tick: int) -> dict[str, int]:
     mem.subscribe_to_read([SKSTAT], lambda a: 0xFF)
     mem.subscribe_to_read([PORTA], lambda a: 0xFF)
     mpu = MPU(memory=mem)
-    for i, b in enumerate((ROOT / 'game.bin').read_bytes()):
-        mem[LOAD_ADDR + i] = b
-    meta = json.loads((ROOT / 'meta.json').read_text())
-    mem[CAV], mem[CAV + 1], mem[CAV + 2] = meta['lives'], meta['extra'], meta['rooms']
-    text = (ROOT / 'levels.txt').read_text()
-    banner = re.search(r'^; title banner: \[(.{20})\]', text, re.M).group(1)     # type: ignore[union-attr]
-    for i, ch in enumerate(banner):
-        mem[TITLE_ADDR + i] = ord(ch)
-    rows = [ln for ln in text.splitlines() if len(ln) == 20 and not ln.startswith(';')]
-    for i, ch in enumerate(''.join(rows)):
-        mem[ROOMS_ADDR + i] = ord(ch)
     mem[CH] = 0xFF
-    mem[0x00D0] = initial_tick
-    mpu.pc = PLAY
+    if xex is not None:
+        from build_xex import load_into
+        mpu.pc = load_into(mem, xex.read_bytes())
+    else:
+        for i, b in enumerate((ROOT / 'game.bin').read_bytes()):
+            mem[LOAD_ADDR + i] = b
+        meta = json.loads((ROOT / 'meta.json').read_text())
+        mem[CAV], mem[CAV + 1], mem[CAV + 2] = meta['lives'], meta['extra'], meta['rooms']
+        text = (ROOT / 'levels.txt').read_text()
+        banner = re.search(r'^; title banner: \[(.{20})\]', text, re.M).group(1)     # type: ignore[union-attr]
+        for i, ch in enumerate(banner):
+            mem[TITLE_ADDR + i] = ord(ch)
+        rows = [ln for ln in text.splitlines() if len(ln) == 20 and not ln.startswith(';')]
+        for i, ch in enumerate(''.join(rows)):
+            mem[ROOMS_ADDR + i] = ord(ch)
+        mem[0x00D0] = 0 if initial_tick is None else initial_tick
+        mpu.pc = PLAY
 
     def vbi() -> None:
         state['frames'] += 1
@@ -147,12 +153,15 @@ def run_game(initial_tick: int) -> dict[str, int]:
 
 
 def main() -> None:
-    bas = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'heartlight.bas'
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    bas = Path(args[0]) if args else ROOT / 'heartlight.bas'
     tick = check_loader(bas)
     print(f'loader: all hex lines decoded through RHEX, $D0 (TICK) at PLAY = ${tick:02X} ({tick}, '
           f'{"odd" if tick & 1 else "even"})')
-    r = run_game(tick)
-    print(f'game: TICK seen by the first SCAN = ${r["tick_at_first_scan"]:02X}; '
+    xex = ROOT / 'heartlight.xex'
+    r = run_game(tick, xex=xex if xex.exists() and '--xex' in sys.argv else None)
+    print(f'game ({"heartlight.xex" if "--xex" in sys.argv else "BASIC-loader layout"}): '
+          f'TICK seen by the first SCAN = ${r["tick_at_first_scan"]:02X}; '
           f'{r["scans_total"]} scans in {r["frames_total"]} frames before DEC LIVES')
     print(f'death wait: {r["scans_in_death_wait"]} SCAN calls over {r["frames_in_death_wait"]} frames '
           f'(CDTMV3 = 64) -> DEATH_TICKS = {r["scans_in_death_wait"]}')

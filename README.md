@@ -30,6 +30,7 @@ pygame front end): **Quaerendir**.
 | `heartlight/data/` | copies of `game.bin`, `meta.json`, `levels.txt` shipped inside the package |
 | `docs/*.png` | screenshots rendered from the extracted data (title, curtain, rooms) |
 | `tools/verify_timing.py` | runs the original loader and game code in py65 to confirm the timing constants |
+| `tools/build_xex.py`, `heartlight.xex` | the original game as a standalone Atari binary for real hardware or emulators |
 
 ## Usage
 
@@ -73,6 +74,23 @@ pixel-exact title, otherwise a system font stands in.
 from heartlight import Engine, Input, parse_levels
 e = Engine(parse_levels(open('levels.txt').read()))
 events = e.tick(Input.RIGHT)   # one physics scan; e.grid, e.state
+```
+
+## Back to the Atari: `heartlight.xex`
+
+Tajemnice ATARI promised a tool to save the typed-in game as a standalone
+file "without the BASIC part" in the next issue. `tools/build_xex.py` is
+that tool: from the extracted data it writes `heartlight.xex`, a DOS binary
+load file that recreates the memory state the BASIC loader leaves behind
+(colour shadows, parameters and rooms at `$7000`, code at `$9014`, `$D0` =
+`$4B`, RUNAD = `$9260`). Load it with any DOS or XEX loader on an XL/XE or
+in an emulator. The py65 harness boots the file the way DOS would and gets
+the same timeline as the BASIC-loaded game. Keyboard control depends on the
+OS key table the game reads at `$FB51`; the joystick works regardless.
+
+```
+python3 tools/build_xex.py            # -> heartlight.xex (3305 bytes)
+python3 tools/verify_timing.py --xex  # boot it in py65
 ```
 
 ## Memory map (from the BASIC loader, lines 230–240)
