@@ -114,3 +114,79 @@ def test_sounds_build_and_play():
     s.play([Event(EventKind.HEART_COLLECTED, 5), Event(EventKind.BLAST, 7, (7,))])
     s.play([])
     assert Sounds(enabled=False).play([Event(EventKind.BLAST, 7, (7,))]) is None
+
+
+# ---------------------------------------------------------------- title screen and curtain
+from heartlight.render import (Curtain, TextFont, TextLine, TitleScreen, atascii_to_screen,  # noqa: E402
+                               load_os_font, parse_title_banner, CURTAIN_ROUNDS)
+import random  # noqa: E402
+
+
+def test_atascii_to_screen_matches_title_conv():
+    assert atascii_to_screen(ord(' ')) == 0x00
+    assert atascii_to_screen(ord('J')) == 0x2A
+    assert atascii_to_screen(ord('a')) == 0x61
+    assert atascii_to_screen(0x01) == 0x41            # control chars -> $40..
+    assert atascii_to_screen(0xCA) == 0xAA            # inverse video keeps bit 7
+
+
+def test_title_text_decoded_from_game_bin(rom):
+    lines = [TextLine.from_screen_codes(rom.title_text[k:k + 20]) for k in (0, 20, 40)]
+    assert [str(ln).strip() for ln in lines] == ['HEARTLIGHT', 'AUTOR: JANUSZ PELC', 'AUTOR KOMNAT:']
+    def text_colours(ln: TextLine) -> set[int]:
+        return {col for ch, col in zip(ln.chars, ln.colours) if ch != 0}
+    assert [text_colours(ln) for ln in lines] == [{2}, {1}, {3}]
+
+
+def test_title_banner_from_levels_txt():
+    banner = parse_title_banner((ROOT / 'levels.txt').read_text())
+    assert banner == '    JANUSZ  PELC    '
+    line = TextLine.from_atascii(banner)
+    assert str(line) == banner and set(line.colours) == {0}
+    assert parse_title_banner('no banner here') == ' ' * 20
+
+
+def test_title_screen_draws_with_fallback_font(rom):
+    r = Renderer(rom, scale=2)
+    t = TitleScreen(rom, '    JANUSZ  PELC    ', r, TextFont(2))
+    surf = pygame.Surface(r.size)
+    t.draw(surf)
+    band = {surf.get_at((x, y))[:3] for x in range(160, 480, 3) for y in range(0, 32, 2)}
+    assert len(band) >= 2 and r.bg in band            # "HEARTLIGHT" band has text pixels
+
+
+def test_title_screen_with_os_font(rom, tmp_path):
+    font = bytearray(1024)
+    font[0x28 * 8:0x28 * 8 + 8] = b'\xff' * 8         # 'H' as a solid block
+    p = tmp_path / 'font.bin'
+    p.write_bytes(font)
+    assert load_os_font(p) == bytes(font)
+    rom16 = tmp_path / 'os.rom'
+    rom16.write_bytes(bytes(0x2000) + bytes(font) + bytes(16384 - 0x2400))
+    assert load_os_font(rom16) == bytes(font)
+    (tmp_path / 'bad.bin').write_bytes(b'\0' * 100)
+    with pytest.raises(ValueError):
+        load_os_font(tmp_path / 'bad.bin')
+    r = Renderer(rom, scale=1)
+    t = TitleScreen(rom, ' ' * 20, r, TextFont(1, bytes(font)))
+    surf = pygame.Surface(r.size)
+    t.draw(surf)
+    assert surf.get_at((5 * 16 + 1, 1))[:3] == r.playfield[2]      # first 'H' of HEARTLIGHT, PF2
+    assert surf.get_at((6 * 16 + 1, 1))[:3] == r.bg                # 'E' is blank in the fake font
+
+
+def test_curtain_sequence():
+    start = [Cell.EMPTY] * 240
+    target = list(Engine(parse_levels((ROOT / 'levels.txt').read_text())).grid)
+    c = Curtain(start, target, random.Random(7))
+    for _ in range(CURTAIN_ROUNDS):
+        assert c.step()
+        assert set(c.cells) <= {Cell.EMPTY, Cell.SOFT_WALL}
+    assert Cell.SOFT_WALL in c.cells
+    assert c.step() and c.cells == [Cell.SOFT_WALL] * 240
+    for _ in range(CURTAIN_ROUNDS):
+        assert c.step()
+    assert c.cells != target and all(a == b or a == Cell.SOFT_WALL for a, b in zip(c.cells, target))
+    assert c.step() and c.cells == target
+    assert not c.step() and not c.running
+    assert Curtain(start, target, random.Random(7)).cells is not start

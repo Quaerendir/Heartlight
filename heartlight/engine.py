@@ -170,7 +170,7 @@ class Engine:
         self._events = []
         if self.status is Status.GAME_OVER:
             return []
-        if self._pending_load:                   # ROOM_START
+        if self._pending_load:                   # ROOM_START (unless the front end drained it)
             self._pending_load = False
             self._load_room()
         if self.status is Status.DYING:          # DEATH_WAIT: keep ticking, no input
@@ -200,6 +200,20 @@ class Engine:
             self.status = Status.DYING
             self._death_ticks = DEATH_TICKS
             self._emit(EventKind.HERO_DIED)
+        return self._events
+
+    @property
+    def load_pending(self) -> bool:
+        """True between a room change (win/death) and the load that the next tick performs."""
+        return self._pending_load
+
+    def load_room(self) -> list[Event]:
+        """Perform a pending load now, without scanning. Lets a renderer show the curtain
+        (LOAD_ROOM) on the freshly loaded grid before the first tick of the room."""
+        self._events = []
+        if self._pending_load:
+            self._pending_load = False
+            self._load_room()
         return self._events
 
     def abort_room(self) -> list[Event]:

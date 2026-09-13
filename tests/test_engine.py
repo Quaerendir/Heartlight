@@ -439,3 +439,15 @@ def test_start_room():
     assert e.state.room == 3 and e.grid.count(C.HERO) == 2
     with pytest.raises(ValueError):
         Engine(rooms, start_room=4)
+
+
+def test_load_pending_and_explicit_load_room():
+    e = Engine([room('%*!%', hero=False), room('%*%', hero=False)])
+    assert not e.load_pending and e.load_room() == []
+    e.tick(RIGHT)
+    assert e.load_pending and e.state.room == 1
+    assert e.grid[idx(1, 0)] == C.EMPTY                  # old room still shown
+    ev = e.load_room()
+    assert kinds(ev) == [EventKind.ROOM_LOADED] and not e.load_pending
+    assert e.grid[idx(1, 0)] == C.HERO and e.grid[idx(2, 0)] == C.HARD_WALL
+    assert EventKind.ROOM_LOADED not in kinds(e.tick(NONE))   # tick does not load twice

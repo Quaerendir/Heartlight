@@ -23,7 +23,7 @@ engine in Python and later a pygame front end.
 | `tests/test_engine.py` | acceptance tests T1–T13 from `SPEC.md` §9 plus checks on the real rooms |
 | `heartlight/render.py` | stage 4: charset from `game.bin`, GTIA palette, tile animation, sound blips |
 | `heartlight/play.py` | stage 4: the playable game (`python -m heartlight.play`) |
-| `docs/room1.png` | screenshot rendered from the extracted data |
+| `docs/*.png` | screenshots rendered from the extracted data (title, curtain, rooms) |
 
 ## Usage
 
@@ -45,11 +45,20 @@ python3 -m mypy heartlight/   # strict
 pip install pygame-ce
 python3 -m heartlight.play [--scale 3] [--room 1] [--no-sound]
 ```
-Arrows / WASD / the original `- = + *`, joystick hat or stick; ESC gives the
-room up (as in the original), Q quits, any key restarts after game over.
-The screen is the original layout: a 40x24 ANTIC mode-4 playfield with 2x2
-characters per cell, the mode-5 status line (hero icon, lives, room), the
-five colour registers from `meta.json`, 6 frames per tick at 50 Hz.
+Title screen: Enter, Space, Shift or a joystick button (START/SHIFT/FIRE in
+the original). In game: arrows / WASD / the original `- = + *`, joystick hat
+or stick; ESC gives the room up (as in the original), Q quits; game over
+returns to the title. The screen is the original layout: a 40x24 ANTIC
+mode-4 playfield with 2x2 characters per cell, the mode-5 status line (hero
+icon, lives, room), the five colour registers from `meta.json`, 6 frames per
+tick at 50 Hz, and the room-loading curtain (25 frames of random soft-wall
+cells, then 25 frames revealing the room). The title screen texts come from
+`game.bin` and the banner from the level data; the original draws them with
+the Atari OS charset, which is not part of this repository. Pass
+`--os-font FILE` (a 1 KB charset dump or an XL/OS-B ROM image) for a
+pixel-exact title, otherwise a system font stands in.
+
+![title](docs/title.png)
 
 ![room 1](docs/room1.png)
 
@@ -76,7 +85,7 @@ events = e.tick(Input.RIGHT)   # one physics scan; e.grid, e.state
 
 Stage 1 done and verified (all 191 hex-line checksums pass, outputs reproduce
 bit-for-bit). Stage 2 (disassembly) done. Stage 3 (engine) implemented and
-tested against `SPEC.md`. Stage 4 (pygame) playable; sound is a synthesised
-stand-in for the POKEY blips, there is no title screen and no room-loading
-curtain. The two `[EMU]` constants (`DEATH_TICKS`, initial tick parity) still
-await confirmation in an emulator.
+tested against `SPEC.md`. Stage 4 (pygame) playable with title screen and
+curtain; sound is a synthesised stand-in for the POKEY blips. The two `[EMU]`
+constants (`DEATH_TICKS`, initial tick parity) still await confirmation in an
+emulator.
