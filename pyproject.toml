@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "heartlight"
-version = "0.1.1"
+version = "0.1.2"
 description = "Heartlight (Atari 8-bit, Janusz Pelc 1990): the original game reconstructed from its 6502 code as a deterministic Python engine with a pygame front end"
 readme = "README.md"
 requires-python = ">=3.11"

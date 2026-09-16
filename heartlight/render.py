@@ -365,12 +365,13 @@ def sound_registers(priority: int, rnd: random.Random) -> tuple[int, int]:
     return audf, SND_C[y]
 
 
-def _lfsr(bits: int, taps: tuple[int, int]) -> bytes:
-    """Maximal-length shift register output sequence (period 2**bits - 1)."""
+def _lfsr(bits: int, tap: int) -> bytes:
+    """Output of the maximal-length shift register x^bits + x^tap + 1 (period 2**bits - 1):
+    a[n+bits] = a[n] ^ a[n+tap], register shifted right, output at bit 0."""
     reg, out = (1 << bits) - 1, bytearray()
     for _ in range((1 << bits) - 1):
         out.append(reg & 1)
-        bit = ((reg >> taps[0]) ^ (reg >> taps[1])) & 1
+        bit = (reg ^ (reg >> tap)) & 1
         reg = (reg >> 1) | (bit << (bits - 1))
     return bytes(out)
 
@@ -382,15 +383,15 @@ class Pokey:
     fires every AUDF+1 ticks. AUDC: bit 7 = skip the 5-bit poly gate, bit 6 = 4-bit poly
     instead of 17-bit, bit 5 = pure tone, bits 0-3 = volume.
     """
-    POLY4 = _lfsr(4, (3, 2))
-    POLY5 = _lfsr(5, (4, 2))
+    POLY4 = _lfsr(4, 3)               # x^4 + x^3 + 1
+    POLY5 = _lfsr(5, 3)               # x^5 + x^3 + 1
     POLY17: bytes | None = None      # built on first use (131071 steps)
 
     def __init__(self, sample_rate: int = 44100, amplitude: int = 20000) -> None:
         self.sample_rate = sample_rate
         self.amplitude = amplitude
         if Pokey.POLY17 is None:
-            Pokey.POLY17 = _lfsr(17, (16, 11))
+            Pokey.POLY17 = _lfsr(17, 12)          # x^17 + x^12 + 1
 
     def render(self, audf: int, audc: int, seconds: float = FRAME_SECONDS) -> array.array[int]:
         base_hz = POKEY_CLOCK / POKEY_BASE_DIV

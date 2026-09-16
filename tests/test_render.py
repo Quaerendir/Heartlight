@@ -9,7 +9,7 @@ import pygame  # noqa: E402
 import pytest  # noqa: E402
 
 from heartlight import Cell, Engine, Event, EventKind, Input, parse_levels  # noqa: E402
-from heartlight.render import (Renderer, RomData, Sounds, TileState, atari_rgb, bcd_digits,  # noqa: E402
+from heartlight.render import (Renderer, RomData, Sounds, TileState, _lfsr, atari_rgb, bcd_digits,  # noqa: E402
                                load_rom, SCREEN_W, SCREEN_H, Pokey, POKEY_CLOCK, POKEY_BASE_DIV,
                                sound_priority, sound_registers)
 
@@ -139,6 +139,16 @@ def test_pokey_pure_tone_frequency():
     expected = 2 * (POKEY_CLOCK / POKEY_BASE_DIV) / (2 * (audf + 1)) * 0.1     # 2 crossings per period
     assert abs(crossings - expected) <= 3
     assert max(samples) > 4000 and min(samples) < -4000                        # volume 4 of 15
+
+
+def test_lfsr_periods():
+    """The polynomial counters must be maximal length: 15, 31 and 131071 (they were not before 0.1.2)."""
+    for bits, tap in ((4, 3), (5, 3), (17, 12)):
+        seq = _lfsr(bits, tap)
+        n = len(seq)
+        assert n == 2 ** bits - 1 and sum(seq) == 2 ** (bits - 1)
+        assert all(seq[(k + bits) % n] == seq[k] ^ seq[(k + tap) % n] for k in range(n))
+        assert all(any(seq[(k + p) % n] != seq[k] for k in range(n)) for p in range(1, min(n, 300)))
 
 
 def test_pokey_noise_and_volume():
