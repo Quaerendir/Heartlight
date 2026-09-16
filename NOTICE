@@ -15,6 +15,10 @@ licence in LICENSE and no rights to them are granted by this repository:
   levels.txt, meta.json room layouts, colours and parameters from the listing
   KOMNATY.LST           "Komnaty do Heartlighta": rooms 5..12 by Maciej Mach,
   2_91_komnaty.html     (C) 1991 Tajemnice ATARI 2/91, from the archive's 2_91.ATR
+  HEARTSVR.LST,         "Heartlight Saver" by Miroslaw Liminowicz, (C) 1991
+  SHORTHSV.LST,         Tajemnice ATARI 2/91, from the archive's 2_91.ATR, and
+  2_91_hsvr.html        its article
+  2_91_kody.html        "Kody do Heartlighta i COS-u", the printed line codes
   game.asm              disassembly of game.bin (the machine code is the
                         original authors'; the labels and comments are ours)
   docs/*.png            screenshots rendered from the original graphics

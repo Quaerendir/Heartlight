@@ -15,6 +15,8 @@ pygame front end): **Quaerendir**.
 |------|------|
 | `1_91_heartlight.html` | the magazine article with the listing (UTF-8; source: unofficial TA archive, 2001) |
 | `heartlight.bas` | the BASIC XL listing, identical to the article |
+| `2_91_kody.html` | "Kody do Heartlighta i COS-u" (TA 2/91): the two-letter line codes printed for the listing; `tests/test_line_codes.py` checks all 313 lines of `heartlight.bas` against them |
+| `2_91_hsvr.html`, `HEARTSVR.LST`, `SHORTHSV.LST` | "Heartlight Saver" (TA 2/91): the magazine's own tools to save the game as a standalone file; `build_xex.py --saver` reproduces the short one's file layout |
 | `2_91_komnaty.html`, `KOMNATY.LST` | "Komnaty do Heartlighta" (TA 2/91): rooms 5–12 as DATA lines 1501–2212 to ENTER into the game; the LST is the file from the archive's `2_91.ATR`, identical to the article |
 | `heartlight_extract.py` | stage 1: parses the listing, checksums the hex DATA, writes the files below |
 | `levels.txt` | 12 rooms, 20×12 ASCII (`% # @ $ * ! & .`): the 4 original ones and the 8 of TA 2/91 |
@@ -32,7 +34,7 @@ pygame front end): **Quaerendir**.
 | `heartlight/data/` | copies of `game.bin`, `meta.json`, `levels.txt` shipped inside the package |
 | `docs/*.png` | screenshots rendered from the extracted data (title, curtain, rooms) |
 | `tools/verify_timing.py` | runs the original loader and game code in py65 to confirm the timing constants |
-| `tools/build_xex.py`, `heartlight.xex` | the game (12 rooms) as a standalone Atari binary for real hardware or emulators |
+| `tools/build_xex.py`, `heartlight.xex` | the game (12 rooms) as a standalone Atari binary for real hardware or emulators; `--saver` for the magazine's layout |
 | `tools/line_codes.py` | the magazine's two-letter line codes ("Generator Kodów Kontrolnych", TA 2/91) for any listing |
 
 ## Usage
@@ -52,7 +54,7 @@ which control-flow analysis cannot reach on its own.
 
 ```
 pip install pytest hypothesis mypy
-python3 -m pytest -q          # 61 tests
+python3 -m pytest -q          # 62 tests
 python3 -m mypy heartlight/   # strict
 ```
 
@@ -87,14 +89,24 @@ events = e.tick(Input.RIGHT)   # one physics scan; e.grid, e.state
 ## Back to the Atari: `heartlight.xex`
 
 Tajemnice ATARI promised a tool to save the typed-in game as a standalone
-file "without the BASIC part" in the next issue. `tools/build_xex.py` is
-that tool: from the extracted data it writes `heartlight.xex`, a DOS binary
-load file that recreates the memory state the BASIC loader leaves behind
-(colour shadows, parameters and rooms at `$7000`, code at `$9014`, `$D0` =
-`$4B`, RUNAD = `$9260`). Load it with any DOS or XEX loader on an XL/XE or
-in an emulator. The py65 harness boots the file the way DOS would and gets
-the same timeline as the BASIC-loaded game. Keyboard control depends on the
-OS key table the game reads at `$FB51`; the joystick works regardless.
+file "without the BASIC part" in the next issue, and delivered it in TA 2/91
+as "Heartlight Saver" (Mirosław Liminowicz): a long version writing tape and
+disk boot formats and DOS files, and a short one writing DOS files only
+(`HEARTSVR.LST`, `SHORTHSV.LST`; run the game, press RESET at the title,
+run the saver). `tools/build_xex.py` writes `heartlight.xex` from the
+extracted data instead: a DOS binary load file that recreates the memory
+state the BASIC loader leaves behind (colour shadows 708–712, parameters and
+rooms at `$7000`, code at `$9014`, `$D0` = `$4B`, RUNAD = `$9260`).
+`--saver` writes the byte layout of the short saver instead (RUNAD, colours,
+`$9000–$98FF`, level data); the two load to the same memory image except
+that the magazine's tool leaves `$D0` alone and stops at `$98FF` (the eight
+bytes beyond are zero padding), see `tests/test_timing_vs_original.py`.
+Comparing them exposed a bug in the earlier `heartlight.xex`: the colours
+went to 712–716 instead of 708–712 (fixed in 0.2.1). Load either file with
+any DOS or XEX loader on an XL/XE or in an emulator. The py65 harness boots
+the file the way DOS would and gets the same timeline as the BASIC-loaded
+game. Keyboard control depends on the OS key table the game reads at
+`$FB51`; the joystick works regardless.
 
 ```
 python3 tools/build_xex.py            # -> heartlight.xex (5225 bytes, 12 rooms)
@@ -113,6 +125,19 @@ python3 tools/verify_timing.py --xex  # boot it in py65
 | `$9260` | `PLAY` entry |
 | `$9B00` | screen (ANTIC mode 4) |
 | `$9EC0` | 20×12 game grid |
+
+## Listing verification
+
+TA 2/91 printed the two-letter line codes for the Heartlight listing ("Kody
+do Heartlighta i COS-u"). `tools/line_codes.py` implements the code
+(recovered from the machine code of the magazine's "Generator Kodów
+Kontrolnych": `Σ i·byte_i mod 676`, quotient and remainder by 26 as letters,
+over the line as the E: editor returns it) and `tests/test_line_codes.py`
+compares all 313 lines of `heartlight.bas` with the table: 311 agree; line
+1060 is printed as `10` for `IO`, and line 11920 is printed `KC` for the
+computed `KD` while the line's own hex checksum passes and no single-
+character variant with a valid checksum gives `KC`, so the table is taken
+to be wrong there.
 
 ## Status
 
