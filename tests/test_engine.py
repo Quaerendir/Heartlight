@@ -399,9 +399,10 @@ LEVELS = Path(__file__).resolve().parent.parent / 'levels.txt'
 
 def test_parse_real_levels():
     rooms = parse_levels(LEVELS.read_text())
-    assert len(rooms) == 4
-    assert [r.count('$') for r in rooms] == [12, 8, 6, 11]
-    assert rooms[3].count('*') == 2
+    assert len(rooms) == 12                     # 4 original rooms + "Komnaty do Heartlighta" (TA 2/91)
+    assert [r.count('$') for r in rooms] == [12, 8, 6, 11, 20, 13, 5, 8, 14, 12, 10, 14]
+    assert rooms[3].count('*') == 2 and rooms[5].count('*') == 4
+    assert all(r.count('!') == 1 for r in rooms)
     e = Engine(rooms)
     assert e.state.hearts_left == 12
     assert e.grid.count(C.ROCK) == 31               # every '@' became ROCK
@@ -438,7 +439,7 @@ def test_start_room():
     e = Engine(rooms, start_room=3)
     assert e.state.room == 3 and e.grid.count(C.HERO) == 2
     with pytest.raises(ValueError):
-        Engine(rooms, start_room=4)
+        Engine(rooms, start_room=len(rooms))
 
 
 def test_load_pending_and_explicit_load_room():

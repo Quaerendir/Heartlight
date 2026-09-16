@@ -4,7 +4,8 @@ Clean reconstruction of Janusz Pelc's *Heartlight* as published in
 **Tajemnice ATARI 1/91** (type-in listing). Goal: a faithful, deterministic
 engine in Python and later a pygame front end.
 
-Original game: Janusz Pelc, (C) 1990 Tajemnice ATARI.
+Original game: Janusz Pelc, (C) 1990 Tajemnice ATARI. Rooms 5–12: Maciej
+Mach, "Komnaty do Heartlighta", Tajemnice ATARI 2/91.
 Conversion (extraction pipeline, disassembly, specification, engine and
 pygame front end): **Quaerendir**.
 
@@ -14,8 +15,9 @@ pygame front end): **Quaerendir**.
 |------|------|
 | `1_91_heartlight.html` | the magazine article with the listing (UTF-8; source: unofficial TA archive, 2001) |
 | `heartlight.bas` | the BASIC XL listing, identical to the article |
+| `2_91_komnaty.html`, `KOMNATY.LST` | "Komnaty do Heartlighta" (TA 2/91): rooms 5–12 as DATA lines 1501–2212 to ENTER into the game; the LST is the file from the archive's `2_91.ATR`, identical to the article |
 | `heartlight_extract.py` | stage 1: parses the listing, checksums the hex DATA, writes the files below |
-| `levels.txt` | 4 rooms, 20×12 ASCII (`% # @ $ * ! & .`) |
+| `levels.txt` | 12 rooms, 20×12 ASCII (`% # @ $ * ! & .`): the 4 original ones and the 8 of TA 2/91 |
 | `meta.json` | colours, lives/extra/rooms, memory layout |
 | `game.bin` | 6502 game code + charset, load `$9014`, entry `PLAY = $9260` |
 | `loader.bin` | page-6 helper routines used only by the BASIC loader |
@@ -30,12 +32,18 @@ pygame front end): **Quaerendir**.
 | `heartlight/data/` | copies of `game.bin`, `meta.json`, `levels.txt` shipped inside the package |
 | `docs/*.png` | screenshots rendered from the extracted data (title, curtain, rooms) |
 | `tools/verify_timing.py` | runs the original loader and game code in py65 to confirm the timing constants |
-| `tools/build_xex.py`, `heartlight.xex` | the original game as a standalone Atari binary for real hardware or emulators |
+| `tools/build_xex.py`, `heartlight.xex` | the game (12 rooms) as a standalone Atari binary for real hardware or emulators |
+| `tools/line_codes.py` | the magazine's two-letter line codes ("Generator Kodów Kontrolnych", TA 2/91) for any listing |
 
 ## Usage
 
 ```
-python3 heartlight_extract.py heartlight.bas          # -> levels.txt meta.json game.bin loader.bin
+python3 heartlight_extract.py heartlight.bas --extra KOMNATY.LST --rooms 12   # -> levels.txt meta.json game.bin loader.bin
+```
+`--extra` merges the second listing by line number, as `ENTER "D:KOMNATY.LST"`
+does, and `--rooms 12` is step 5 of the TA 2/91 instructions (the third
+parameter of line 1050). Without them the outputs are the 4-room original.
+```
 pip install py65
 python3 heartlight_disasm.py game.bin 9464 940E 93C9 9402 93B3 93BF 93CE 947C 943B 9407 93B8 > game.asm
 ```
@@ -44,7 +52,7 @@ which control-flow analysis cannot reach on its own.
 
 ```
 pip install pytest hypothesis mypy
-python3 -m pytest -q          # 33 tests
+python3 -m pytest -q          # 61 tests
 python3 -m mypy heartlight/   # strict
 ```
 
@@ -89,7 +97,7 @@ the same timeline as the BASIC-loaded game. Keyboard control depends on the
 OS key table the game reads at `$FB51`; the joystick works regardless.
 
 ```
-python3 tools/build_xex.py            # -> heartlight.xex (3305 bytes)
+python3 tools/build_xex.py            # -> heartlight.xex (5225 bytes, 12 rooms)
 python3 tools/verify_timing.py --xex  # boot it in py65
 ```
 

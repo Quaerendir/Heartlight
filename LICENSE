@@ -23,6 +23,6 @@ SOFTWARE.
 ---
 
 This licence covers the conversion work only: heartlight_extract.py,
-heartlight_disasm.py, the heartlight/ package, tests/, SPEC.md, SPEC.v1.md,
+heartlight_disasm.py, the heartlight/ package, tests/, tools/, SPEC.md, SPEC.v1.md,
 README.md and the annotations in game.asm. It does NOT cover the original game
 and its data; see NOTICE.

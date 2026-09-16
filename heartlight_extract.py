@@ -11,6 +11,11 @@ Parses the BASIC XL loader listing and extracts:
                     (load address $9014, entry PLAY = $9260), checksum-verified
   * loader.bin   -- page-6 helper routines decoded from decimal DATA lines
 
+--extra FILE appends another listing the way ENTER "D:FILE" does (lines merged
+by number, later files win): the eight rooms of "Komnaty do Heartlighta"
+(Maciej Mach, TA 2/91, KOMNATY.LST) are DATA lines 1501..2212. --rooms N is
+step 5 of that article: the third parameter of line 1050 (room count).
+
 Checksum algorithm (recovered from the ML hex decoder at $0603):
   each hex DATA line = 26 hex chars = 13 bytes; byte[12] == sum(byte[0:12]) & 0xFF
 
@@ -109,12 +114,19 @@ def main():
     ap = argparse.ArgumentParser(description='Extract data from heartlight.bas')
     ap.add_argument('source', type=Path)
     ap.add_argument('-o', '--outdir', type=Path, default=Path('.'))
+    ap.add_argument('--extra', type=Path, action='append', default=[], metavar='FILE',
+                    help='ENTER another listing on top (e.g. KOMNATY.LST with rooms 5..12)')
+    ap.add_argument('--rooms', type=int, default=None, help='override the room count of line 1050')
     ap.add_argument('--glyphs', metavar='OFF[,N]',
                     help='dump N (default 16) 8-byte glyphs from game.bin at offset OFF (hex ok)')
     args = ap.parse_args()
 
     text = args.source.read_text(encoding='latin-1')
     lines = logical_lines(text)
+    for extra in args.extra:                                   # ENTER "D:...": merge by line number
+        merged = dict(lines)
+        merged.update(logical_lines(extra.read_text(encoding='latin-1').replace('\x9b', '\n')))
+        lines = sorted(merged.items())
 
     colors, params, strings, hex_rows, loader_vals = [], [], [], [], []
     bad_checksums, bad_hex = [], []
@@ -141,6 +153,8 @@ def main():
             colors = [int(v) for v in payload.split(',')]
         elif no == 1050:
             params = [int(v) for v in payload.split(',')]
+            if args.rooms is not None and len(params) == 3:    # "uaktualnić trzeci parametr w wierszu 1050"
+                params[2] = args.rooms
         elif 500 <= no < 1000:
             loader_vals += [int(v) for v in payload.split(',')]
 
@@ -188,6 +202,7 @@ def main():
     # meta.json
     meta = {
         'source': args.source.name,
+        'extra_sources': [e.name for e in args.extra],
         'colors_708_712': colors,
         'lives': lives, 'extra': extra, 'rooms': n_rooms,
         'game_bin': {

@@ -1,5 +1,8 @@
 {
   "source": "heartlight.bas",
+  "extra_sources": [
+    "KOMNATY.LST"
+  ],
   "colors_708_712": [
     4,
     6,
@@ -9,7 +12,7 @@
   ],
   "lives": 3,
   "extra": 2,
-  "rooms": 4,
+  "rooms": 12,
   "game_bin": {
     "size": 2292,
     "load_addr": "$9014",

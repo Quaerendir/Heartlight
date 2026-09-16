@@ -13,6 +13,8 @@ licence in LICENSE and no rights to them are granted by this repository:
                         electronic archive (Pixel, 2001)
   game.bin, loader.bin  6502 machine code decoded from the listing
   levels.txt, meta.json room layouts, colours and parameters from the listing
+  KOMNATY.LST           "Komnaty do Heartlighta": rooms 5..12 by Maciej Mach,
+  2_91_komnaty.html     (C) 1991 Tajemnice ATARI 2/91, from the archive's 2_91.ATR
   game.asm              disassembly of game.bin (the machine code is the
                         original authors'; the labels and comments are ours)
   docs/*.png            screenshots rendered from the original graphics

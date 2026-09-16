@@ -32,10 +32,10 @@ def test_xex_boots_like_the_basic_loaded_game(tmp_path):
     import build_xex
     xex = build_xex.build(ROOT)
     segs = build_xex.parse(xex)
-    assert [(s, e) for s, e, _ in segs] == [(0x02C8, 0x02CC), (0x7000, 0x7000 + 3 + 20 + 4 * 240 - 1),
+    assert [(s, e) for s, e, _ in segs] == [(0x02C8, 0x02CC), (0x7000, 0x7000 + 3 + 20 + 12 * 240 - 1),
                                             (0x9014, 0x9907), (0x00D0, 0x00D0), (0x02E0, 0x02E1)]
     assert segs[2][2] == (ROOT / 'game.bin').read_bytes()
-    assert segs[1][2][:3] == bytes([3, 2, 4]) and segs[1][2][3:23] == b'    JANUSZ  PELC    '
+    assert segs[1][2][:3] == bytes([3, 2, 12]) and segs[1][2][3:23] == b'    JANUSZ  PELC    '
     assert segs[4][2] == b'\x60\x92'
     assert (ROOT / 'heartlight.xex').read_bytes() == xex          # committed file is current
     p = tmp_path / 'h.xex'
