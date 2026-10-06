@@ -58,6 +58,30 @@ python3 -m pytest -q          # 62 tests
 python3 -m mypy heartlight/   # strict
 ```
 
+### Using the engine from Python
+
+The engine is independent of pygame. `parse_levels` turns the text of
+`levels.txt` into room strings, `Engine.tick` runs one physics scan of the
+original and returns the events it caused (`e.grid` and `e.state` hold the
+result).
+
+From a checkout:
+
+```python
+from heartlight import Engine, Input, parse_levels
+e = Engine(parse_levels(open('levels.txt').read()))
+events = e.tick(Input.RIGHT)   # one physics scan; e.grid, e.state
+```
+
+From the PyPI package, which ships the rooms as package data:
+
+```python
+from importlib.resources import files
+from heartlight import Engine, Input, parse_levels
+e = Engine(parse_levels((files('heartlight') / 'data' / 'levels.txt').read_text()))
+events = e.tick(Input.RIGHT)
+```
+
 ```
 pip install heartlight            # from PyPI: engine + front end + game data
 heartlight [--scale 3] [--room 1] [--no-sound]
@@ -79,12 +103,6 @@ pixel-exact title, otherwise a system font stands in.
 ![title](docs/title.png)
 
 ![room 1](docs/room1.png)
-
-```python
-from heartlight import Engine, Input, parse_levels
-e = Engine(parse_levels(open('levels.txt').read()))
-events = e.tick(Input.RIGHT)   # one physics scan; e.grid, e.state
-```
 
 ## Back to the Atari: `heartlight.xex`
 
